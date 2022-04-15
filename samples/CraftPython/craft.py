@@ -45,8 +45,7 @@ JSONEncoder_olddefault = JSONEncoder.default
 
 # special encoding for supporting UUID in json payload
 def JSONEncoder_newdefault(self, o):
-    if isinstance(o, UUID): return str(o)
-    return JSONEncoder_olddefault(self, o)
+    return str(o) if isinstance(o, UUID) else JSONEncoder_olddefault(self, o)
 
 JSONEncoder.default = JSONEncoder_newdefault
 
@@ -125,11 +124,10 @@ class CraftClient(object):
         global glist,sessionId
         totalDeltaValue=0
         totalRatchetDeltaValue=0
-        count=0
         listCount=0
         global firstObject
 
-        if(msg['message_type'] == "crown_turn_event"):
+        if (msg['message_type'] == "crown_turn_event"):
             glist.append(msg)
             listCount = len(glist)
             if listCount==0:
@@ -138,12 +136,15 @@ class CraftClient(object):
             print("+++currentToolOption = ",currentToolOption)
             print("listCount = ",listCount)
             firstObject = glist[0]
+            count=0
             for i in range(listCount):
-                if currentToolOption == glist[i]['task_options']['current_tool_option']:
-                    totalDeltaValue = totalDeltaValue = glist[i]['delta']
-                    totalRatchetDeltaValue = totalRatchetDeltaValue + glist[i]['ratchet_delta']
-                else:
+                if (
+                    currentToolOption
+                    != glist[i]['task_options']['current_tool_option']
+                ):
                     break
+                totalDeltaValue = totalDeltaValue = glist[i]['delta']
+                totalRatchetDeltaValue = totalRatchetDeltaValue + glist[i]['ratchet_delta']
                 count += 1
 
             if listCount >= 0:
@@ -160,10 +161,8 @@ class CraftClient(object):
                         print("\n","selected slider")
                         v = slider.GetValue()
                         tvalue = v + totalDeltaValue
-                        if tvalue <= 0:
-                            tvalue = 0
-                        if tvalue >1000:
-                            tvalue = 1000
+                        tvalue = max(tvalue, 0)
+                        tvalue = min(tvalue, 1000)
                         slider.SetValue(tvalue)
                         print("report called....",tvalue,msg)
                         self.report(msg,tvalue)
@@ -171,42 +170,34 @@ class CraftClient(object):
                         print("\n","selected SpinCtrl")
                         v = spin.GetValue()
                         tvalue = v + totalDeltaValue
-                        if tvalue <= 0:
-                            tvalue = 0
-                        if tvalue >1000:
-                            tvalue = 1000
+                        tvalue = max(tvalue, 0)
+                        tvalue = min(tvalue, 1000)
                         spin.SetValue(tvalue)
                         self.report(msg,tvalue)
                     elif firstObject['task_options']['current_tool'] == 'Gauge':
                         if firstObject['task_options']['current_tool_option'] == 'gauge':
-                           print("\n","selected Gauge")
-                           v = gauge.GetValue()
-                           tvalue = v + totalDeltaValue
-                           if tvalue <= 0:
-                              tvalue = 0
-                           if tvalue >500:
-                              tvalue = 500
-                           gauge.SetValue(tvalue)
-                           self.report(msg,tvalue)
+                            print("\n","selected Gauge")
+                            v = gauge.GetValue()
+                            tvalue = v + totalDeltaValue
+                            tvalue = max(tvalue, 0)
+                            tvalue = min(tvalue, 500)
+                            gauge.SetValue(tvalue)
+                            self.report(msg,tvalue)
                         if firstObject['task_options']['current_tool_option'] == 'gaugeRatchet':
-                           print("\n","selected gaugeRatchet")
-                           v = gauge.GetValue()
-                           tvalue = v + (totalRatchetDeltaValue * 10)
-                           if tvalue <= 0:
-                              tvalue = 0
-                           if tvalue >500:
-                              tvalue = 500
-                           gauge.SetValue(tvalue)
-                           self.report(msg,tvalue)
+                            print("\n","selected gaugeRatchet")
+                            v = gauge.GetValue()
+                            tvalue = v + (totalRatchetDeltaValue * 10)
+                            tvalue = max(tvalue, 0)
+                            tvalue = min(tvalue, 500)
+                            gauge.SetValue(tvalue)
+                            self.report(msg,tvalue)
 
                     elif firstObject['task_options']['current_tool'] == 'ComboBox':
                         print("\n","selected ComboBox")
                         v = combo.GetSelection()
                         tvalue = v + totalRatchetDeltaValue
-                        if tvalue <= 0:
-                            tvalue = 0
-                        if tvalue >999:
-                            tvalue = 999
+                        tvalue = max(tvalue, 0)
+                        tvalue = min(tvalue, 999)
                         combo.SetSelection(tvalue)
                         self.report(msg,tvalue)
                     elif firstObject['task_options']['current_tool'] == 'TextCtrl':
@@ -220,10 +211,8 @@ class CraftClient(object):
                         print("\n","selected ListBox")
                         v = lb.GetSelection()
                         v = v + totalRatchetDeltaValue
-                        if v <= 0:
-                            v = 0
-                        if v > 999:
-                            v = 999
+                        v = max(v, 0)
+                        v = min(v, 999)
                         lb.SetSelection(v)
                         lb.EnsureVisible(v)
                         self.report(msg,v)
@@ -232,16 +221,12 @@ class CraftClient(object):
 
 
 
-        elif (msg['message_type'] == "register_ack"):
+        elif msg['message_type'] == "register_ack":
             print("register_ack = ",msg['message_type'])
             sessionId = msg['session_id']
             print("Session Id = ",sessionId)
 
-            if platform.system() == 'Windows':
-                defaultTool = "Slider"
-            else:
-                defaultTool = "SpinCtrl"
-
+            defaultTool = "Slider" if platform.system() == 'Windows' else "SpinCtrl"
             connectMessage = {
                 "message_type": "tool_change",
                 "session_id": sessionId,
@@ -282,9 +267,7 @@ class TestFrame(wx.Frame):
         lbl = wx.StaticText(panel, -1, label="text", pos=(10,260), size=(50,-1))
         lbl.SetLabel("ComboBox")
 
-        l=[]
-        for i in range(0, 1000):
-          l.append(str(i))
+        l = [str(i) for i in range(1000)]
         combo = wx.ComboBox(panel, -1, "", pos=(100,260), size=(200,25), choices=l)
         combo.Bind(wx.EVT_SET_FOCUS, self.comboBoxFocus)
         combo.Bind(wx.EVT_LEFT_UP, self.comboBoxFocus)
@@ -305,10 +288,7 @@ class TestFrame(wx.Frame):
         lbl = wx.StaticText(panel, -1, label="text", pos=(400,180), size=(50,-1))
         lbl.SetLabel("ListBox")
 
-        li =[]
-        for i in range(0, 1000):
-            li.append(str(i))
-
+        li = [str(i) for i in range(1000)]
         lb = wx.ListBox(panel, -1, pos=(480,180), size=(100,-1), choices=li)
         lb.Bind(wx.EVT_SET_FOCUS, self.listBoxFocus)
         lb.Bind(wx.EVT_LEFT_UP, self.listBoxFocus)
